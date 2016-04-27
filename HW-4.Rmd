@@ -1,6 +1,6 @@
 ---
 title: "MATH 216 Homework 4"
-author: "WRITE YOUR NAME HERE"
+author: "Alison Cook"
 output: html_document
 ---
 
@@ -17,14 +17,15 @@ suppressPackageStartupMessages(library(rgdal))
 suppressPackageStartupMessages(library(maptools))
 # For interactive maps
 suppressPackageStartupMessages(library(leaflet))
+suppressPackageStartupMessages(library(plotly))
 ```
 
 ## Admistrative:
 
 Please indicate
 
-* Who you collaborated with: Jacob Dixon, Carter Merenstein
-* Roughly how much time you spent on this HW: Close to 9 hours
+* Who you collaborated with: Jacob Dixon, Carter Merenstein, Andrew Holtz
+* Roughly how much time you spent on this HW: 12 hours
 * What gave you the most trouble: leaflet!! and tiny things like states with two names not populating or organizing data to be in the correct format. It is frustrating to know conceptually what to do and to feel like there are so many small roadblocks.
 * Any comments you have:I think this is a cool, relevant data set! I just wish it wasn't taking me so long on such nice and also hectic days... 
 
@@ -37,7 +38,7 @@ Please indicate
 ```{r, cache=TRUE, echo=FALSE}
 # Load state and county map of US in 2010 from the maps package and convert them
 # to data frames so that we can ggplot them.
-US_state <- map_data("state") %>% 
+US_state <- map_data("state") %>%
   tbl_df()
 US_county <- map_data("county") %>% 
   tbl_df()
@@ -102,9 +103,9 @@ ggplot(data=NULL) +
 
 ### Write-Up
 
-```{r, fig.width=12, fig.height=6}
+```{r, echo=FALSE, fig.width=12, fig.height=6}
 
-election_county <- read.csv("/Users/Ali/Math_216/HW-4/CY/COUNTY.csv", header = T) %>% 
+election_county <- read.csv("CY/COUNTY.csv", header = T) %>% 
   tbl_df()
 
 
@@ -135,20 +136,22 @@ county_data$PBUSH <- as.numeric(as.character(county_data$PBUSH))
 county_data$PGORE <- as.numeric(as.character(county_data$PGORE))
 county_data$PNADER <- as.numeric(as.character(county_data$PNADER))
 
-party <- ifelse(county_data$PBUSH >= 0.5, 1, 
-                ifelse(county_data$PGORE + county_data$PNADER >= 0.5, -1, 0))
+party <- ifelse(county_data$PBUSH >= 0.5, county_data$PBUSH, 
+                ifelse(county_data$PGORE + county_data$PNADER >= 0.5, -(county_data$PGORE+county_data$PNADER), 0))
 
 county_data <- mutate(county_data, party)
 
-ggplot(data=NULL) +
+g <- ggplot(data=NULL) +
   geom_polygon(data=county_data, aes(x=long, y=lat, group=group, fill=party)) +
   geom_path(data=county_data, aes(x=long, y=lat, group=group), col="black", size=0.05) +
   geom_path(data=US_state, aes(x=long, y=lat, group=group), col="black", size=0.1) +
   coord_map() +
-  scale_fill_gradient2(name="", low="blue", high="red", mid="white")
+  scale_fill_gradient2(name="Party", low="blue", high="red", mid="white", breaks = c(-0.8, 0, 0.9), 
+                       labels = c("Democrat", "Split", "Republican")) +
+  labs(title = "2000 Election Voting Patterns By County", x = "longitude", y = "latitude") 
+  
+g
 
-#where are the missing counties coming from?
-# make this a plotly graph
 
 #proportion of difference in counties per state 
 #add up and divide by numer of counties per state. closer to 0 means more split. more -/+ means less split
@@ -160,14 +163,16 @@ num_counties <- US_county %>% distinct(subregion) %>%
 election_score_state <- aggregate(county_data$party, by=list(region=county_data$region), FUN=sum, na.rm = TRUE)
 election_score_state <- election_score_state %>% mutate(prop = x/num_counties$count) 
 election_score_state$prop <- abs(election_score_state$prop)
-election_score_state <- election_score_state %>% arrange(prop)
+election_score_state <- election_score_state %>% arrange(prop) 
+election_score_state
+
 
 #this gives you an idea of county to county heterogenaity (i.e. was there a lot of discrepancy
 #location to location in the state) but gives you no idea about population
 #multiply by pop to weight each county divide by population of state?
 ```
 
-
+This map of voter data from 2000 shows that geographically, much of the United States leans republican. However, if you look at where democratic-leaning counties, they are mainly in metropolitan areas. There are relatively few "split" counties, mostly occuring in swing states in the midwest as well as areas with very heterogeneous populations (i.e. south-eastern california). One way to measure within-state heterogeneity in voting patterns is to look geographically at county-to-county variability. Here, I gave each state a score (x on the table) which is calculated by summing all of the counties' voting records. A more negative score means that more counties in the state vote democrate while a more positive score means that more vote republican. These scores were divided by the number of counties in the state to yield a normalized value. The closer to 0 this value, the more heterogeneous counties in the state tend to vote. 
 
 
 
@@ -192,26 +197,19 @@ There should be some mechanism in your Shiny app that allows one the user to tog
 between the different ethnic groups.
 
 
-### Loading Shapefile Data
-
-Here is some starter code:
-
-```{r}
+```{r, echo=FALSE}
 #Q2
 
 shapefile_name <- paste(getwd(), "/VT_census_tracts/tl_2015_50_tract.shp", sep="")
 VT <- readOGR(shapefile_name, layer = "tl_2015_50_tract", verbose = FALSE)
-leaflet(VT) %>%
-  addTiles() %>% 
-  addPolylines(color="black", weight=1)
 
-VT_race <- read.csv("/Users/Ali/Math_216/HW-4/VT_race_data.csv")
+VT_race <- read.csv("VT_race_data.csv")
+#contains WAY more than just VT's 184 census blocks because I used circle tool on social explorer
 
 #rename columns
-VT_race <- dplyr::rename(VT_race, White = `SE_T054_002`, African_American = `SE_T054_003`, Hispanic = `SE_T055_010`, 
-                         Asian = `SE_T054_005`, Pacific_Islander = `SE_T054_006`, Two_plus = `SE_T054_008`, Other = `SE_T054_007`, total_pop = `SE_T054_001`)
+VT_race <- dplyr::rename(VT_race, White = `SE_T054_002`, African_American = `SE_T054_003`, Hispanic = `SE_T055_010`, Asian = `SE_T054_005`, Pacific_Islander = `SE_T054_006`, Two_plus = `SE_T054_008`, Other = `SE_T054_007`, total_pop = `SE_T054_001`)
 
-VT_race <- VT_race %>% select(Geo_NAME, Geo_QName, Geo_FIPS, total_pop, White, African_American, Hispanic, Asian, Pacific_Islander, Other, Two_plus)
+VT_race <- VT_race %>% select(Geo_NAME, Geo_QName, Geo_FIPS, Geo_TRACT, total_pop, White, African_American, Hispanic, Asian, Pacific_Islander, Other, Two_plus)
 
 #find proportions
 VT_race$prop_white <- VT_race$White/VT_race$total_pop
@@ -220,59 +218,71 @@ VT_race$prop_Hispanic <- VT_race$Hispanic/VT_race$total_pop
 VT_race$prop_Asian_pacific <- (VT_race$Asian + VT_race$Pacific_Islander)/VT_race$total_pop
 VT_race$prop_Other <- (VT_race$Other + VT_race$Two_plus)/VT_race$total_pop
 
-# The following bit of code
-# -Assigns a unique id to each census tract
-# -fortify() and inner_join() to create a ggplot'able data frame. You don't need
-#  to understand these functions.
-VT$id <- rownames(VT@data)
-VT_points <- fortify(VT, region="id")
-VT_df <- inner_join(VT_points, VT@data, by="id")
-
-#join race data with VT data
-VT_df$GEOID <- as.numeric(as.character(VT_df$GEOID))
-VT_census <- left_join(VT_df, VT_race, by = c("GEOID" = "Geo_FIPS"))
-
-
-# color palatte
-
-binpal <- colorBin("Blues", VT_census$prop_white)
-
 #prop_white
-leaflet(VT) %>%
+leaflet(VT) %>% 
   addTiles() %>% 
-  addPolylines(color="black", weight=1) %>% 
-  addPolygons(stroke = FALSE, fillOpacity = 0.5, smoothFactor = 0.5,
-              color = ~binpal(VT_census$prop_white))
+  addPolylines(color = "black", weight = 1) %>% 
+  addLegend("bottomright", values = ~VT_race$prop_white,
+    title = "Proportion White",
+    labFormat = labelFormat(prefix = ""),
+    opacity = 1, pal = colorNumeric("Blues", VT_race$prop_white)) %>% 
+  addPolygons(
+    stroke = FALSE, fillOpacity = 0.5, smoothFactor = 0.5,
+    color = ~colorQuantile("Blues", VT_race$prop_white)(VT_race$prop_white))
+
+#prop african american
+leaflet(VT) %>% 
+  addTiles() %>% 
+  addPolylines(color = "black", weight = 1) %>% 
+  addLegend("bottomright", values = ~VT_race$prop_African_American,
+    title = "Proportion African American",
+    labFormat = labelFormat(prefix = ""),
+    opacity = 1, pal = colorNumeric("Greens", VT_race$prop_African_American)) %>% 
+  addPolygons(
+    stroke = FALSE, fillOpacity = 0.5, smoothFactor = 0.5,
+    color = ~colorQuantile("Greens", VT_race$prop_African_American)(VT_race$prop_African_American))
 
 #prop_hispanic 
-leaflet(VT) %>%
+leaflet(VT) %>% 
   addTiles() %>% 
-  addPolylines(color="black", weight=1) %>% 
-  addPolygons(stroke = FALSE, fillOpacity = 0.5, smoothFactor = 0.5,
-              color = ~binpal(VT_census$prop_Hispanic))
+  addPolylines(color = "black", weight = 1) %>% 
+  addLegend("bottomright", values = ~VT_race$prop_Hispanic,
+    title = "Proportion Hispanic",
+    labFormat = labelFormat(prefix = ""),
+    opacity = 1, pal = colorNumeric("Greys", VT_race$prop_Hispanic)) %>% 
+  addPolygons(
+    stroke = FALSE, fillOpacity = 0.5, smoothFactor = 0.5,
+    color = ~colorQuantile("Greys", VT_race$prop_Hispanic)(VT_race$prop_Hispanic))
 
-#prop_african american 
-leaflet(VT) %>%
+#asian pacific islander
+leaflet(VT) %>% 
   addTiles() %>% 
-  addPolylines(color="black", weight=1) %>% 
-  addPolygons(stroke = FALSE, fillOpacity = 0.5, smoothFactor = 0.5,
-              color = ~binpal(VT_census$prop_African_American))
+  addPolylines(color = "black", weight = 1) %>% 
+  addLegend("bottomright", values = ~VT_race$prop_Asian_pacific,
+    title = "Proportion Asian and Pacific Islander",
+    labFormat = labelFormat(prefix = ""),
+    opacity = 1, pal = colorNumeric("Purples", VT_race$prop_Asian_pacific)) %>% 
+  addPolygons(
+    stroke = FALSE, fillOpacity = 0.5, smoothFactor = 0.5,
+    color = ~colorQuantile("Purples", VT_race$prop_Asian_pacific)(VT_race$prop_Asian_pacific))
 
-#chlorpleth
-#click on box and leaflet superimposes
-# fill based on each individual
-# fill by race 
+
+#prop other
+leaflet(VT) %>% 
+  addTiles() %>% 
+  addPolylines(color = "black", weight = 1) %>% 
+  addLegend("bottomright", values = ~VT_race$prop_Other,
+    title = "Proportion Other",
+    labFormat = labelFormat(prefix = ""),
+    opacity = 1, pal = colorNumeric("Reds", VT_race$prop_Other)) %>% 
+  addPolygons(
+    stroke = FALSE, fillOpacity = 0.5, smoothFactor = 0.5,
+    color = ~colorQuantile("Reds", VT_race$prop_Other)(VT_race$prop_Other))
 ```
 
 
-### Write-Up
+While Vermont is largely white, some areas are more diverse than others. Diversity in Vermont appears to be concentrated in clusters of census tracts. These more diverse centers are largely in metropolitan areas: the greater Burlington area, Montpelier, and southern Vermont around Bellow's Falls and Brattleboro.
 
-Upload your shiny app to the Middlebury Shiny Server (see Lecture 16) and post
-the url to the app [here](https://www.nhl.com/), replacing the nhl.com link with 
-the link to your app.
-
-Comment on general ethnic demographic trends that's more substantive than just
-"Vermont is really white."
 
 
 
